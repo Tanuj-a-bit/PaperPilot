@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperPilot — Research Literature Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Marked.js for rendering markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Topbar Navigation -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <span class="masthead-title">PaperPilot</span>
+            <span class="masthead-badge">Academic v2</span>
+        </div>
+        
+        <div class="topbar-center">
+            <div class="search-pill">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="globalTopicInput" placeholder="Search topic on arXiv (e.g. Speculative Decoding)..." value="Retrieval Augmented Generation">
+                <button id="topbarFetchBtn" class="pill-btn">Fetch Papers</button>
+            </div>
+        </div>
+
+        <div class="topbar-right">
+            <!-- Scratchpad Toggle -->
+            <button id="toggleNotesBtn" class="topbar-action-btn" title="Toggle Research Notes (Cmd+J)">
+                📝 Notes
+            </button>
+            
+            <!-- 9-Dots App Launcher Icon -->
+            <button id="nineDotsBtn" class="icon-btn" title="Research Tools & Features">
+                <svg width="20" height="20" viewBox="0 0 18 18">
+                    <circle cx="3" cy="3" r="1.8" fill="currentColor"/>
+                    <circle cx="9" cy="3" r="1.8" fill="currentColor"/>
+                    <circle cx="15" cy="3" r="1.8" fill="currentColor"/>
+                    <circle cx="3" cy="9" r="1.8" fill="currentColor"/>
+                    <circle cx="9" cy="9" r="1.8" fill="currentColor"/>
+                    <circle cx="15" cy="9" r="1.8" fill="currentColor"/>
+                    <circle cx="3" cy="15" r="1.8" fill="currentColor"/>
+                    <circle cx="9" cy="15" r="1.8" fill="currentColor"/>
+                    <circle cx="15" cy="15" r="1.8" fill="currentColor"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- 9-Dots App Launcher Drawer / Dropdown -->
+    <div id="nineDotsMenu" class="bento-menu hidden">
+        <div class="bento-header">
+            <h4>Research Modules</h4>
+        </div>
+        <div class="bento-grid">
+            <div class="bento-item" data-target="roadmap">
+                <span class="bento-icon">🗺️</span>
+                <span class="bento-label">PhD Roadmap</span>
+            </div>
+            <div class="bento-item" data-target="papers">
+                <span class="bento-icon">📚</span>
+                <span class="bento-label">arXiv Feed</span>
+            </div>
+            <div class="bento-item" data-target="ask">
+                <span class="bento-icon">💬</span>
+                <span class="bento-label">Evidence Q&A</span>
+            </div>
+            <div class="bento-item" data-target="compare">
+                <span class="bento-icon">⚖️</span>
+                <span class="bento-label">Compare Matrix</span>
+            </div>
+            <div class="bento-item" data-target="gaps">
+                <span class="bento-icon">💡</span>
+                <span class="bento-label">Thesis Gaps</span>
+            </div>
+            <div class="bento-item" onclick="toggleScratchpad()">
+                <span class="bento-icon">📝</span>
+                <span class="bento-label">Scratchpad</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Container -->
+    <div class="workspace">
+        <main class="primary-pane">
+            <!-- Navigation Tabs -->
+            <nav class="tabs-nav">
+                <button class="tab-btn active" data-tab="roadmap">PhD Roadmap</button>
+                <button class="tab-btn" data-tab="papers">Papers Feed (<span id="paperTabCount">0</span>)</button>
+                <button class="tab-btn" data-tab="ask">Evidence Q&A</button>
+                <button class="tab-btn" data-tab="compare">Compare Matrix</button>
+                <button class="tab-btn" data-tab="gaps">Research Gaps</button>
+            </nav>
+
+            <!-- Tab 1: Roadmap -->
+            <section id="tab-roadmap" class="tab-pane active">
+                <div class="pane-header">
+                    <div>
+                        <h2>PhD Literature Roadmap</h2>
+                        <p class="pane-subtitle">Curated 4-stage progression: Foundations → Core Methods → SOTA Advances → Open Thesis Gaps.</p>
+                    </div>
+                    <button id="genRoadmapBtn" class="btn btn-primary">Generate Roadmap</button>
+                </div>
+
+                <div id="roadmapProgressWrap" class="progress-wrap hidden">
+                    <div class="progress-label">
+                        <span>Reading Progress: <strong id="progressText">0 of 0</strong> completed</span>
+                        <span id="progressPct">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progressBar" class="progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div id="roadmapContent" class="content-block">
+                    <p class="placeholder-text">Fetch papers using the top search bar and click "Generate Roadmap" to synthesize a curriculum.</p>
+                </div>
+            </section>
+
+            <!-- Tab 2: Papers -->
+            <section id="tab-papers" class="tab-pane">
+                <div class="pane-header">
+                    <div>
+                        <h2>Live arXiv Feed</h2>
+                        <p class="pane-subtitle">Streamed directly from arXiv API — zero disk footprint.</p>
+                    </div>
+                    <div class="slider-control">
+                        <span class="label-sub">Fetch count: <strong id="fetchCountVal">7</strong></span>
+                        <input type="range" id="fetchCountSlider" min="3" max="15" value="7" class="slider">
+                    </div>
+                </div>
+                <div id="papersList" class="content-block">
+                    <p class="placeholder-text">No papers loaded. Enter a topic in the topbar and click "Fetch Papers".</p>
+                </div>
+            </section>
+
+            <!-- Tab 3: Ask (Q&A) -->
+            <section id="tab-ask" class="tab-pane">
+                <div class="pane-header">
+                    <div>
+                        <h2>Citation-Grounded Q&A</h2>
+                        <p class="pane-subtitle">Ask questions across the retrieved papers. Answers cite exact papers and arXiv IDs.</p>
+                    </div>
+                </div>
+                
+                <div class="qa-input-box">
+                    <input type="text" id="questionInput" class="input input-lg" placeholder="e.g. What are the key bottlenecks in retrieval latency for multi-hop RAG?">
+                    <button id="askBtn" class="btn btn-primary">Ask Literature</button>
+                </div>
+
+                <div id="qaResults" class="qa-history"></div>
+            </section>
+
+            <!-- Tab 4: Compare -->
+            <section id="tab-compare" class="tab-pane">
+                <div class="pane-header">
+                    <div>
+                        <h2>Multi-Paper Comparison</h2>
+                        <p class="pane-subtitle">Select two or more papers to generate a structured comparative matrix.</p>
+                    </div>
+                    <button id="compareBtn" class="btn btn-primary">Compare Selected</button>
+                </div>
+                
+                <div id="compareSelectWrap" class="compare-selector">
+                    <p class="placeholder-text">Fetch papers first to select items for comparison.</p>
+                </div>
+
+                <div id="compareResult" class="content-block"></div>
+            </section>
+
+            <!-- Tab 5: Gaps -->
+            <section id="tab-gaps" class="tab-pane">
+                <div class="pane-header">
+                    <div>
+                        <h2>PhD Research Gaps & Thesis Angles</h2>
+                        <p class="pane-subtitle">Synthesizes recurring limitations and unexplored opportunities across papers.</p>
+                    </div>
+                    <button id="gapsBtn" class="btn btn-primary">Uncover Gaps</button>
+                </div>
+                
+                <div id="gapsResult" class="content-block">
+                    <p class="placeholder-text">Click "Uncover Gaps" to analyze the current active papers with Gemini.</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Collapsible Right Research Scratchpad -->
+        <aside id="notesDrawer" class="notes-drawer hidden">
+            <div class="notes-header">
+                <h3>Research Scratchpad</h3>
+                <button onclick="toggleScratchpad()" class="close-btn">&times;</button>
+            </div>
+            <p class="notes-desc">Jot down thesis ideas, clipped citations, or hypotheses while reviewing papers.</p>
+            <textarea id="scratchpadArea" class="scratchpad-textarea" placeholder="Paste notes, copy citations, or draft thesis problem statements here..."></textarea>
+            <div class="notes-footer">
+                <button id="copyNotesBtn" class="btn btn-secondary btn-sm">Copy Notes</button>
+                <button id="clearNotesBtn" class="btn btn-secondary btn-sm">Clear</button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Spinner Modal Overlay -->
+    <div id="spinnerOverlay" class="spinner-overlay hidden">
+        <div class="spinner-box">
+            <div class="spinner"></div>
+            <p id="spinnerText">Processing request...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

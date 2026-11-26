@@ -1,43 +1,51 @@
-"""Gemini API wrapper with automatic retry & exponential backoff for rate limits."""
+"""Gemini API wrapper with automatic fallback models and exponential backoff."""
 
 import time
 import google.generativeai as genai
-from google.api_core.exceptions import ResourceExhausted, InternalServerError
+from google.api_core.exceptions import ResourceExhausted, NotFound, InternalServerError
 from src.config import GEMINI_API_KEY, GEMINI_MODEL
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Fallback sequence if Google deprecates or rate-limits a specific sub-model
+FALLBACK_MODELS = [GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.5-flash"]
 
-def generate(prompt: str, system_instruction: str = None, max_retries: int = 4) -> str:
+def generate(prompt: str, system_instruction: str = None, max_retries: int = 3) -> str:
     """
-    Call Gemini with automatic exponential backoff to handle 429 ResourceExhausted limits.
+    Call Gemini with automatic model fallback and exponential retry backoff.
     """
-    model = genai.GenerativeModel(
-        GEMINI_MODEL,
-        system_instruction=system_instruction,
-    )
+    last_error = None
     
-    delay = 5
-    for attempt in range(max_retries):
-        try:
-            response = model.generate_content(prompt)
-            return response.text
-        except ResourceExhausted as e:
-            if attempt < max_retries - 1:
-                # Sleep and retry
-                time.sleep(delay)
-                delay *= 2
-            else:
-                return (
-                    "⚠️ Free Tier Gemini API rate limit reached (requests per minute). "
-                    "Please wait a few seconds and try again."
-                )
-        except InternalServerError:
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2
-            else:
-                raise
-        except Exception as e:
-            raise e
-    return "Rate limit exceeded. Please wait a moment and try again."
+    for model_name in dict.fromkeys(FALLBACK_MODELS):  # preserve order without duplicates
+        model = genai.GenerativeModel(
+            model_name,
+            system_instruction=system_instruction,
+        )
+        delay = 4
+        
+        for attempt in range(max_retries):
+            try:
+                response = model.generate_content(prompt)
+                return response.text
+            except NotFound:
+                # Model name retired or unavailable -> immediately switch to next fallback
+                break
+            except ResourceExhausted:
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    last_error = "Rate limit reached. Please wait a moment and try again."
+            except InternalServerError:
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    last_error = "Gemini server busy. Please try again."
+            except Exception as e:
+                last_error = str(e)
+                break
+                
+    if last_error:
+        return f"Service response: {last_error}"
+    return "Unable to process request at this time. Please retry in a few moments."

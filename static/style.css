@@ -18,6 +18,9 @@
     --stage-core: #1D4ED8;
     --stage-advanced: #B45309;
     --stage-gaps: #B91C1C;
+    --badge-ieee: #006699;
+    --badge-arxiv: #B31B1B;
+    --badge-s2: #107C41;
 }
 
 * {
@@ -80,7 +83,7 @@ h3 { font-size: 17px; }
 
 .topbar-center {
     flex: 1;
-    max-width: 580px;
+    max-width: 680px;
     margin: 0 24px;
 }
 .search-pill {
@@ -91,13 +94,13 @@ h3 { font-size: 17px; }
     border-radius: 20px;
     padding: 4px 6px 4px 14px;
     transition: border-color 0.15s;
+    gap: 8px;
 }
 .search-pill:focus-within {
     border-color: var(--accent-primary);
 }
 .search-icon {
     font-size: 14px;
-    margin-right: 8px;
     color: var(--text-caption);
 }
 .search-pill input {
@@ -107,6 +110,20 @@ h3 { font-size: 17px; }
     font-size: 14px;
     background: transparent;
     color: var(--text-heading);
+    min-width: 140px;
+}
+.source-select {
+    border: 1px solid var(--border-light);
+    background-color: #F8FAFC;
+    color: var(--text-body);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    outline: none;
+    cursor: pointer;
+}
+.source-select:hover {
+    border-color: var(--border-hover);
 }
 .pill-btn {
     background-color: var(--accent-primary);
@@ -118,6 +135,7 @@ h3 { font-size: 17px; }
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s;
+    white-space: nowrap;
 }
 .pill-btn:hover {
     background-color: var(--accent-hover);
@@ -305,7 +323,7 @@ h3 { font-size: 17px; }
     font-size: 12px;
 }
 
-/* ── Paper Card with 3-Dots Menu ── */
+/* ── Paper Card with Source Badges & 3-Dots Menu ── */
 .paper-card {
     background: var(--bg-card);
     border: 1px solid var(--border-light);
@@ -329,6 +347,20 @@ h3 { font-size: 17px; }
     font-weight: 600;
     color: var(--text-heading);
 }
+
+/* Source Badges */
+.badge-source {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    margin-right: 6px;
+    color: white;
+}
+.badge-ieee { background-color: var(--badge-ieee); }
+.badge-arxiv { background-color: var(--badge-arxiv); }
+.badge-other { background-color: #4B5563; }
 
 /* 3-Dots Context Menu */
 .menu-wrap {

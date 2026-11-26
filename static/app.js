@@ -1,4 +1,4 @@
-// PaperPilot — Frontend logic with 9-Dots Launcher, 3-Dots Actions, and Scratchpad
+// PaperPilot — Frontend logic supporting Multi-Source Literature (IEEE, Semantic Scholar, OpenAlex, arXiv)
 
 let activePapers = [];
 let roadmapData = null;
@@ -6,6 +6,7 @@ let readPaperTitles = new Set();
 
 // ── DOM References ──
 const globalTopicInput = document.getElementById('globalTopicInput');
+const sourceSelect = document.getElementById('sourceSelect');
 const topbarFetchBtn = document.getElementById('topbarFetchBtn');
 const fetchCountSlider = document.getElementById('fetchCountSlider');
 const fetchCountVal = document.getElementById('fetchCountVal');
@@ -114,17 +115,24 @@ function hideSpinner() {
     spinnerOverlay.classList.add('hidden');
 }
 
-// ── 1. Fetch Papers from arXiv ──
+// ── 1. Fetch Papers across Selected Source(s) ──
 topbarFetchBtn.addEventListener('click', async () => {
     const topic = globalTopicInput.value.trim();
     if (!topic) return alert('Please enter a research topic.');
 
-    showSpinner(`Querying arXiv for recent literature on "${topic}"...`);
+    const source = sourceSelect.value;
+    const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
+
+    showSpinner(`Querying ${sourceLabel} for "${topic}"...`);
     try {
         const res = await fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic, max_results: parseInt(fetchCountSlider.value) })
+            body: JSON.stringify({
+                topic,
+                source,
+                max_results: parseInt(fetchCountSlider.value)
+            })
         });
         const data = await res.json();
         activePapers = data.papers || [];
@@ -137,16 +145,16 @@ topbarFetchBtn.addEventListener('click', async () => {
         document.getElementById('roadmapContent').innerHTML = '<p class="placeholder-text">Click "Generate Roadmap" to synthesize a curriculum from fetched papers.</p>';
         document.getElementById('roadmapProgressWrap').classList.add('hidden');
 
-        showToast(`Retrieved ${activePapers.length} papers!`);
+        showToast(`Retrieved ${activePapers.length} papers from ${sourceLabel}!`);
         switchTab('papers');
     } catch (err) {
-        alert('Failed to fetch from arXiv: ' + err.message);
+        alert('Failed to fetch literature: ' + err.message);
     } finally {
         hideSpinner();
     }
 });
 
-// ── 2. Render Papers List with 3-Dots Menu (⋮) ──
+// ── 2. Render Papers List with Source Badges & 3-Dots Menu (⋮) ──
 function renderPapersList() {
     const container = document.getElementById('papersList');
     if (!activePapers.length) {
@@ -154,7 +162,16 @@ function renderPapersList() {
         return;
     }
 
-    container.innerHTML = activePapers.map((p, idx) => `
+    container.innerHTML = activePapers.map((p, idx) => {
+        // Source Badge class
+        let badgeClass = 'badge-other';
+        const srcLower = (p.source || '').toLowerCase();
+        if (srcLower.includes('ieee')) badgeClass = 'badge-ieee';
+        else if (srcLower.includes('arxiv')) badgeClass = 'badge-arxiv';
+
+        const sourceBadge = `<span class="badge-source ${badgeClass}">${p.source || 'Scholar'}</span>`;
+
+        return `
         <div class="paper-card">
             <div class="paper-card-header">
                 <div class="paper-title">${idx + 1}. ${p.title} (${p.year})</div>
@@ -171,15 +188,19 @@ function renderPapersList() {
                 </div>
             </div>
 
-            <div class="paper-meta">${p.authors} · arXiv: <code>${p.arxiv_id}</code></div>
+            <div class="paper-meta">
+                ${sourceBadge}
+                ${p.authors} · <em>${p.venue || 'Academic Publication'}</em>
+            </div>
             
             <div class="paper-links">
                 <button class="btn btn-secondary btn-sm" onclick="toggleAbstract(${idx})">Toggle Abstract</button>
-                ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" rel="noopener">Open PDF →</a>` : ''}
+                ${p.pdf_url ? `<a href="${p.pdf_url}" target="_blank" rel="noopener">Open Paper / PDF →</a>` : ''}
             </div>
             <div id="abs-${idx}" class="paper-abstract hidden">${p.summary}</div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 window.toggleAbstract = function(idx) {
@@ -214,7 +235,7 @@ window.addPaperToCompare = function(idx) {
 window.copyBibtex = function(idx) {
     const p = activePapers[idx];
     const key = (p.authors.split(' ')[0] || 'paper') + p.year;
-    const bibtex = `@article{${key.toLowerCase()},\n  title={${p.title}},\n  author={${p.authors}},\n  year={${p.year}},\n  eprint={${p.arxiv_id}},\n  archivePrefix={arXiv}\n}`;
+    const bibtex = `@article{${key.toLowerCase()},\n  title={${p.title}},\n  author={${p.authors}},\n  year={${p.year}},\n  venue={${p.venue || 'IEEE/arXiv'}},\n  url={${p.pdf_url || ''}}\n}`;
     navigator.clipboard.writeText(bibtex);
     showToast('BibTeX citation copied to clipboard!');
 };
@@ -222,7 +243,7 @@ window.copyBibtex = function(idx) {
 window.clipToScratchpad = function(idx) {
     const p = activePapers[idx];
     notesDrawer.classList.remove('hidden');
-    const clip = `\n[Paper Citation] ${p.title} (${p.year})\nAuthors: ${p.authors} (arXiv:${p.arxiv_id})\nNotes: \n`;
+    const clip = `\n[Paper Citation] ${p.title} (${p.year})\nAuthors: ${p.authors} [${p.source} - ${p.venue || ''}]\nNotes: \n`;
     scratchpadArea.value += clip;
     showToast('Clipped to scratchpad!');
 };
@@ -232,7 +253,7 @@ document.getElementById('genRoadmapBtn').addEventListener('click', async () => {
     if (!activePapers.length) return alert('Please fetch papers first using the search bar.');
 
     const topic = globalTopicInput.value.trim();
-    showSpinner('Synthesizing PhD curriculum & literature evolution via Gemini...');
+    showSpinner('Synthesizing PhD curriculum & literature evolution across papers via Gemini...');
     try {
         const res = await fetch('/api/roadmap', {
             method: 'POST',
@@ -338,7 +359,7 @@ document.getElementById('askBtn').addEventListener('click', async () => {
     if (!question) return;
 
     const topic = globalTopicInput.value.trim();
-    showSpinner('Retrieving literature and reasoning with Gemini...');
+    showSpinner('Retrieving multi-source literature and reasoning with Gemini...');
     try {
         const res = await fetch('/api/qa', {
             method: 'POST',
@@ -374,7 +395,7 @@ function renderCompareSelector() {
     wrap.innerHTML = activePapers.map((p, idx) => `
         <label style="display: block; margin: 6px 0; font-size: 14px;">
             <input type="checkbox" class="compare-chk" value="${idx}" ${idx < 2 ? 'checked' : ''}>
-            ${p.title} (${p.year})
+            [${p.source}] ${p.title} (${p.year})
         </label>
     `).join('');
 }
@@ -384,7 +405,7 @@ document.getElementById('compareBtn').addEventListener('click', async () => {
     if (checkedBoxes.length < 2) return alert('Select at least 2 papers to compare.');
 
     const selectedPapers = Array.from(checkedBoxes).map(cb => activePapers[parseInt(cb.value)]);
-    showSpinner('Synthesizing comparative matrix with Gemini...');
+    showSpinner('Synthesizing comparative matrix across papers with Gemini...');
     try {
         const res = await fetch('/api/compare', {
             method: 'POST',

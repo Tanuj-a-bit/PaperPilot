@@ -1,6 +1,6 @@
 """FastAPI server for PaperPilot (HTML/CSS/JS frontend).
-Serves pure live arXiv streaming + Gemini reasoning.
-Zero local storage.
+Serves multi-source academic paper streaming (arXiv, Semantic Scholar, OpenAlex).
+Zero local storage, zero vector database persistence.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 
-from src.apis.arxiv_client import query_arxiv_live
+from src.apis.unified_search import search_academic_papers
 from src.features.core_features import live_arxiv_qa, live_compare_arxiv, live_research_gaps
 from src.features.roadmap import generate_phd_roadmap
 
@@ -27,6 +27,7 @@ def read_root():
 # ── API Models ──
 class SearchRequest(BaseModel):
     topic: str
+    source: str = "all"  # 'all', 'arxiv', 'semanticscholar', 'openalex'
     max_results: int = 7
 
 class RoadmapRequest(BaseModel):
@@ -48,7 +49,7 @@ class GapsRequest(BaseModel):
 @app.post("/api/search")
 def search_papers(req: SearchRequest):
     try:
-        papers = query_arxiv_live(req.topic, max_results=req.max_results)
+        papers = search_academic_papers(req.topic, source=req.source, max_results=req.max_results)
         return {"papers": papers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
